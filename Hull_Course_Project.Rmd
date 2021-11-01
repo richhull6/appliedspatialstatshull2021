@@ -2,7 +2,6 @@
 title: "Hull Course Project Applied Spatial Statistics Fall 2021"
 output: html_notebook
 ---
-
 ## set working directory
 ```{r}
 setwd("~/Indiana PhD/IU--Applied Spatial Statistics/Course_Project")
@@ -22,8 +21,6 @@ library(stringr)
 if(!require(lubridate)){install.packages("lubridate")}
 library(lubridate)
 # install/load map and raster packages
-if(!require(picante)){install.packages("picante")}
-library(picante)
 if(!require(sf)){install.packages("sf")}
 library(sf)
 if(!require(tmap)){install.packages("tmap")}
@@ -44,6 +41,7 @@ library(purrr)
 ### Part I: Parse plant occurrence data and calculate native species richness per county
 ## load raw plant occurrence data
 ```{r}
+## load raw plant occurrence data
 deam1 <- read.csv(file = "Deam_indiana_raw_data.csv", header = T, na.strings=c("","NA"))
 ```
 
@@ -62,7 +60,7 @@ deam3 <- deam2 %>% drop_na()
 ```{r}
 deam4 <- deam3 %>% filter_all(all_vars(!grepl("NA", .)))
 deam5 <- deam4 %>% filter_all(all_vars(!grepl("ó", .)))
-deam6 <- deam5 %>% filter_all(all_vars(!grepl("×", .)))
+deam6 <- deam5 %>% filter_all(all_vars(!grepl("hybrid", .)))
 ```
 
 ## Correct county name spelling
@@ -100,7 +98,7 @@ deam6$stateProvince[deam6$stateProvince == "indiana"] <- "Indiana"
 
 ## Correct species names against official list at: https://midwestherbaria.org/portal/checklists/checklist.php?clid=3510&pid=124&dynclid=0.
 ```{r}
-## Upload county name list
+## Upload species name list
 indspecies <- read.csv("indspecies.csv", header = TRUE, fileEncoding="UTF-8-BOM")
 
 # Test for wrong species spellings
