@@ -1,0 +1,171 @@
+---
+title: "Hull Course Project Applied Spatial Statistics Fall 2021"
+output: html_notebook
+---
+## set working directory
+```{r}
+setwd("~/Indiana PhD/IU--Applied Spatial Statistics/Course_Project")
+```
+
+## install/load necessary packages
+```{r}
+# install/load data parsing packages
+if(!require(dplyr)){install.packages("dplyr")}
+library(dplyr)
+if(!require(tidyr)){install.packages("tidyr")}
+library(tidyr)
+if(!require(data.table)){install.packages("data.table")}
+library(data.table)
+if(!require(stringr)){install.packages("stringr")}
+library(stringr)
+if(!require(lubridate)){install.packages("lubridate")}
+library(lubridate)
+# install/load map and raster packages
+if(!require(sf)){install.packages("sf")}
+library(sf)
+if(!require(tmap)){install.packages("tmap")}
+library(tmap)
+if(!require(rgdal)){install.packages("rgdal")}
+library(rgdal)
+if(!require(sp)){install.packages("sp")}
+library(sp)
+if(!require(raster)){install.packages("raster")}
+library(raster)
+# install/load exact multinomial test packages
+if(!require(EMT)){install.packages("EMT")}
+library(EMT)
+if(!require(purrr)){install.packages("purrr")}
+library(purrr)
+```
+
+### Part I: Parse plant occurrence data and calculate native species richness per county
+## load raw plant occurrence data
+```{r}
+## load raw plant occurrence data
+deam1 <- read.csv(file = "Deam_indiana_raw_data.csv", header = T, na.strings=c("","NA"))
+```
+
+## Combine genus and specificEpithet and then remove original columns
+```{r}
+deam1$speciesName <- paste(deam1$genus,deam1$specificEpithet)
+deam2 <- subset(deam1, select = c(family, speciesName, recordedBy, eventDate, country, stateProvince, county, decimalLatitude, decimalLongitude))
+```
+
+## Remove data with no GPS coordinates or dates
+```{r}
+deam3 <- deam2 %>% drop_na()
+```
+
+## Remove data that are not identified to species (denoted by "NA") and remove hybrids
+```{r}
+deam4 <- deam3 %>% filter_all(all_vars(!grepl("NA", .)))
+deam5 <- deam4 %>% filter_all(all_vars(!grepl("ó", .)))
+deam6 <- deam5 %>% filter_all(all_vars(!grepl("×", .)))
+```
+
+## Correct county name spelling
+```{r}
+## Upload county name list
+ctynames <- read.csv("ctynames.csv", header = TRUE, fileEncoding="UTF-8-BOM")
+# Test for wrong county spellings
+x <- deam6$county %in% ctynames$county
+y <- data.frame(x)
+z <- data.frame(which(grepl("FALSE", y$x)))
+## If z contains data fix
+## Correct county name spelling
+deam6$county[deam6$county == "knox"] <- "Knox"
+deam6$county[deam6$county == "gibson"] <- "Gibson"
+deam6$county[deam6$county == "cass"] <- "Cass"
+deam6$county[deam6$county == "pike"] <- "Pike"
+deam6$county[deam6$county == "orange"] <- "Orange"
+deam6$county[deam6$county == "grant"] <- "Grant"
+deam6$county[deam6$county == "wayne"] <- "Wayne"
+deam6$county[deam6$county == "jasper"] <- "Jasper"
+deam6$county[deam6$county == "ELkhart"] <- "Elkhart"
+deam6$county[deam6$county == "crawford"] <- "Crawford"
+deam6$county[deam6$county == "La Porte"] <- "LaPorte"
+# Test for wrong county spellings
+x <- deam6$county %in% ctynames$county
+y <- data.frame(x)
+z <- data.frame(which(grepl("FALSE", y$x)))
+```
+
+## Correct Indiana name spelling
+```{r}
+# Correct indiana to Indiana
+deam6$stateProvince[deam6$stateProvince == "indiana"] <- "Indiana"
+```
+
+## Correct species names against official list at: https://midwestherbaria.org/portal/checklists/checklist.php?clid=3510&pid=124&dynclid=0.
+```{r}
+## Upload species name list
+indspecies <- read.csv("indspecies.csv", header = TRUE, fileEncoding="UTF-8-BOM")
+
+# Test for wrong species spellings
+x <- deam6$speciesName %in% indspecies$ScientificName
+y <- data.frame(x)
+z <- data.frame(which(grepl("FALSE", y$x)))
+
+## Reassign unnaccepted names to their accepted synonyms
+
+deam6$speciesName[deam6$speciesName == "Andropogon gerardii"] <- "Andropogon gerardi"
+
+deam6$speciesName[deam6$speciesName == "Adicea deamii"] <- "Pilea pumila"
+
+deam6$speciesName[deam6$speciesName == "Baptisia lactea"] <- "Baptisia alba"
+
+deam6$speciesName[deam6$speciesName == "Lacinaria scariosa"] <- "Liatris scariosa"
+
+deam6$speciesName[deam6$speciesName == "Carex striatula"] <- "Carex laxiflora"
+
+deam6$speciesName[deam6$speciesName == "Viburnum pubescens"] <- "Viburnum dentatum"
+
+deam6$speciesName[deam6$speciesName == "Celtis pumila"] <- "Celtis occidentalis"
+
+deam6$speciesName[deam6$speciesName == "Vernonia altissima"] <- "Vernonia gigantea"
+
+deam6$speciesName[grepl("Malus io", deam6$speciesName)] <- "Malus ioensis"
+
+deam6$speciesName[deam6$speciesName == "Botrychium obliquum"] <- "Sceptridium dissectum"
+
+deam6$speciesName[deam6$speciesName == "Arabis viridis"] <- "Borodinia missouriensis"
+
+deam6$speciesName[grepl("tes engelmannii", deam6$speciesName)] <- "Isoetes engelmannii"
+
+deam6$speciesName[deam6$speciesName == "Juncus macer"] <- "Juncus anthelatus"
+
+deam6$speciesName[deam6$speciesName == "Solidago deamii"] <- "Solidago simplex"
+
+deam6$speciesName[deam6$speciesName == "Rosa deamii"] <- "Rosa carolina"
+
+deam6$speciesName[deam6$speciesName == "Panicum deamii"] <- "Dichanthelium ovale"
+
+deam6$speciesName[deam6$speciesName == "Piptatherum pungens"] <- "Piptatheropsis pungens"
+
+deam6$speciesName[deam6$speciesName == "Helianthus rigidus"] <- "Helianthus pauciflorus"
+
+deam6$speciesName[deam6$speciesName == "Malus angustifolia"] <- "Malus ioensis"
+
+deam6$speciesName[deam6$speciesName == "Stachys aff. tenuifolia"] <- "Stachys tenuifolia"
+
+deam6$speciesName[deam6$speciesName == "Rubus satis"] <- "Rubus flagellaris"
+
+# Remove remaining species not included on the official IND list
+
+listhybrids <- c('Lacinaria deamii', 'Crataegus incaedua', 'Rubus profusiflorus', 'Tripleurospermum inodorum', 'Bromus briziformis', 'Rubus serratus', 'Ficus carica', 'Argemone mexicana')
+deam7 <- deam6[ !grepl(paste(listhybrids, collapse="|"), deam6$speciesName),]
+
+# Check species again
+x <- deam7$speciesName %in% indspecies$ScientificName
+y <- data.frame(x)
+z <- data.frame(which(grepl("FALSE", y$x)))
+```
+
+## remove records of non-native species, using the list of non-native Indiana species located at: https://universalfqa.org/view_database/156. The dataframe "deam8" is the same as the data "Deam_Filtered_Data_10_31_2021."
+```{r}
+# load nonnatives list
+nonnatives <- read.csv(file = "nonnatives_indiana.csv", header = T)
+# remove species records that are non-native
+deam <- deam7[ !grepl(paste(nonnatives$Scientific.Name, collapse="|"), deam7$speciesName),]
+write.csv(deam, "Deam_Filtered_Data_10_31_2021.csv", row.names=F)
+```

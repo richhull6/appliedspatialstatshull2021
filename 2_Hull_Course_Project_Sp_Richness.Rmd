@@ -1,0 +1,147 @@
+---
+title: "Hull Course Project Applied Spatial Statistics Fall 2021"
+output: html_notebook
+---
+## set working directory
+```{r}
+setwd("~/Indiana PhD/IU--Applied Spatial Statistics/Course_Project")
+```
+
+## install/load necessary packages
+```{r}
+# install/load data parsing packages
+if(!require(dplyr)){install.packages("dplyr")}
+library(dplyr)
+if(!require(tidyr)){install.packages("tidyr")}
+library(tidyr)
+if(!require(data.table)){install.packages("data.table")}
+library(data.table)
+if(!require(stringr)){install.packages("stringr")}
+library(stringr)
+if(!require(lubridate)){install.packages("lubridate")}
+library(lubridate)
+# install/load map and raster packages
+if(!require(sf)){install.packages("sf")}
+library(sf)
+if(!require(tmap)){install.packages("tmap")}
+library(tmap)
+if(!require(rgdal)){install.packages("rgdal")}
+library(rgdal)
+if(!require(sp)){install.packages("sp")}
+library(sp)
+if(!require(raster)){install.packages("raster")}
+library(raster)
+# install/load exact multinomial test packages
+if(!require(EMT)){install.packages("EMT")}
+library(EMT)
+if(!require(purrr)){install.packages("purrr")}
+library(purrr)
+```
+
+## load data
+```{r}
+# load nonnatives list
+deam <- read.csv(file = "Deam_Filtered_Data_10_31_2021.csv", header = T)
+```
+
+## Create site-species matrix for the complete dataset, treating counties as sites
+```{r}
+# Subset data to only include species name and county
+sitesp1 <- subset(deam, select = c(county, speciesName))
+# Sum number of occurrences of each species in each county
+sitesp2 <- sitesp1 %>% count(county, speciesName)
+# Create site x species matrix by reshaping data
+sitesp <- pivot_wider(sitesp2, names_from = speciesName, values_from = n,)
+# Replace NA's with 0
+sitesp[is.na(sitesp)] <- 0
+# convert back to data frame and name counties for sites. 
+sitesp <- as.data.frame(sitesp)
+rownames(sitesp) <- sitesp[,1]
+sitesp <- sitesp[,-1]
+```
+
+## Calculate alpha diversity of native plant species per Indiana county using site-species matrix
+```{r}
+# write species richness function with site species matrix as input
+S.obs <- function(x = ""){
+  rowSums(x > 0) * 1
+}
+# calculate site species richness (county) using site species matrix of Indiana native species
+obssprichwt <- data.frame(S.obs(sitesp))
+colnames(obssprichwt)[1] <- "ALPHADIVERSITY"
+# Set row header to new column
+obssprichwt$county <- rownames(obssprichwt)
+```
+
+## Upload shapefile with Indiana counties
+```{r warning=FALSE}
+# upload shapefile with Indiana counties
+indiana1 <- shapefile("~/Indiana PhD/IU--Applied Spatial Statistics/Course_Project/Indiana_Counties/Indiana_Counties.shp")
+# change CRS to WGS84
+indiana <- spTransform(indiana1, CRS=CRS("+proj=longlat +datum=WGS84"))
+```
+
+## Calculate species density per Indiana county land area
+```{r}
+# merge species richness with polygon data
+spdensity <- merge(indiana,
+                     obssprichwt,
+                     by.x = "NAME",
+                     by.y = "county")
+# calculate square kilometers per county land area
+spdensity$ALAND_KM2 <- spdensity$ALAND/1000000
+# calculate ratio of species per square kilometer of land area for each county
+spdensity$SPDENSITY_KM2 <- spdensity$ALPHADIVERSITY/spdensity$ALAND_KM2
+```
+
+## plot species density per Indiana county
+```{r}
+# plot using tmap
+tm_shape(spdensity, projection="+init=epsg:4326") +
+  tm_polygons("SPDENSITY_KM2", border.col = "grey30", title="Species Richness per km^2") + tm_compass(position=c("right", "top"), text.size = .5) + tm_layout(main.title = "Species Density per Indiana County Land Area", 
+          main.title.size = .8, 
+          main.title.fontface = 2, 
+          legend.title.fontface = 2,
+          legend.title.size = .6,
+          title.position = c("center", "top"), 
+          legend.text.size=.6, compass.type = "rose", inner.margins=c(.1,.1,.2,.4), aes.palette = list(seq = "-Spectral"), legend.outside = T, legend.position = c("right", "top")) + tm_scale_bar(size = 0.5)
+```
+
+## calculate correlation between county size and species richness
+```{r}
+# assess normality via histograms
+hist(spdensity$ALAND, main = "Land Area per County", xlab = "Land Area (meters squared)", prob = T)
+curve(dnorm(x,
+            mean=mean(spdensity$ALAND),sd=sd(spdensity$ALAND)),
+      col="darkblue", lwd=2, add=TRUE, yaxt="n")
+lines(density(spdensity$ALAND), col="red")
+hist(spdensity$ALPHADIVERSITY, main = "Species Richness per County", xlab = "Species Richness", prob = T)
+curve(dnorm(x,
+            mean=mean(spdensity$ALPHADIVERSITY),sd=sd(spdensity$ALPHADIVERSITY)),
+      col="darkblue", lwd=2, add=TRUE, yaxt="n")
+lines(density(spdensity$ALPHADIVERSITY), col="red")
+# assess normality via qq plots
+par(mfrow=c(1,2), pty='s', pch=19)
+qqnorm(spdensity$ALAND, main = "Land Area per County", pch=19)
+qqline(spdensity$ALAND)
+qqnorm(spdensity$ALPHADIVERSITY, main = "Species Richness per County", pch=19)
+qqline(spdensity$ALPHADIVERSITY)
+# log both variables
+spdensity$ALANDLOG <- log(spdensity$ALAND)
+spdensity$ALPHADIVERSITYLOG <- log(spdensity$ALPHADIVERSITY)
+# Reassess normality via qqplots
+par(mfrow=c(1,2), pty='s', pch=19)
+qqnorm(spdensity$ALANDLOG, main = "Land Area per County, logged", pch=19)
+qqline(spdensity$ALANDLOG)
+qqnorm(spdensity$ALPHADIVERSITYLOG, main = "Species Richness per County, logged", pch=19)
+qqline(spdensity$ALPHADIVERSITYLOG)
+# calculate pearson's correlation
+rlog <- cor(spdensity$ALANDLOG, spdensity$ALPHADIVERSITYLOG, method = "pearson")
+r <- cor(spdensity$ALAND, spdensity$ALPHADIVERSITY, method = "pearson")
+```
+
+# export data
+```{r}
+write.csv(sitesp2, "sitesp2.csv", row.names = F)
+```
+

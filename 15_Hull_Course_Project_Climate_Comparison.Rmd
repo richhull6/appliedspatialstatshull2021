@@ -1,0 +1,276 @@
+---
+title: "Hull Course Project Applied Spatial Statistics Fall 2021"
+output: html_notebook
+---
+## set working directory
+```{r}
+setwd("~/Indiana PhD/IU--Applied Spatial Statistics/Course_Project")
+```
+
+## install/load necessary packages
+```{r}
+# install/load data parsing packages
+if(!require(dplyr)){install.packages("dplyr")}
+library(dplyr)
+if(!require(tidyr)){install.packages("tidyr")}
+library(tidyr)
+if(!require(data.table)){install.packages("data.table")}
+library(data.table)
+if(!require(stringr)){install.packages("stringr")}
+library(stringr)
+if(!require(lubridate)){install.packages("lubridate")}
+library(lubridate)
+# install/load map and raster packages
+if(!require(sf)){install.packages("sf")}
+library(sf)
+if(!require(tmap)){install.packages("tmap")}
+library(tmap)
+if(!require(rgdal)){install.packages("rgdal")}
+library(rgdal)
+if(!require(sp)){install.packages("sp")}
+library(sp)
+if(!require(raster)){install.packages("raster")}
+library(raster)
+# install/load exact multinomial test packages
+if(!require(EMT)){install.packages("EMT")}
+library(EMT)
+if(!require(purrr)){install.packages("purrr")}
+library(purrr)
+if(!require(reshape2)){install.packages("reshape2")}
+library(reshape2)
+```
+
+## import data
+```{r}
+# upload shapefile with Indiana counties
+indiana1 <- shapefile("~/Indiana PhD/IU--Applied Spatial Statistics/Course_Project/Indiana_Counties_2/indiana2.shp")
+# change CRS to WGS84
+indiana <- spTransform(indiana1, CRS=CRS("+proj=longlat +datum=WGS84"))
+```
+
+## import nc file containing climate data. Data is originally from: https://www.ncei.noaa.gov/data/nclimgrid-monthly/access/.
+```{r}
+# import data
+climate1.brick <- brick("nclimgrid_tmin.nc")
+# transform shapefile CRS to match raster CRS
+indiana <- spTransform(indiana, crs(climate1.brick))
+```
+
+## subset raster data for study period and calculate a January layer by averaging January values into one raster layer
+```{r}
+# get layer names
+layer_names <- names(climate1.brick)
+# create vector of layer names to keep for current time period (January from 2010-2020)
+yearsc <- c(2010:2020)
+layers_keepc <- paste("X",yearsc,".01",".01",sep="")
+# keep layers if they contain current time period
+climate2.brickc <- climate1.brick[[layers_keepc]]
+```
+
+## mask both rasters by Indiana shapefile
+```{r}
+climate.brickc = mask(climate2.brickc, indiana)
+```
+
+## calculate average minimum January temperature across Indiana per year
+```{r}
+# calculate average minimum January temperature per year for the current time period
+climate.average.yearc <- data.frame(rasterlayer.mean=cellStats(climate.brickc, "mean"))
+```
+
+## plot time series of average minimum January temperature across Indiana per year
+```{r}
+# plot for current time period
+plot(yearsc,climate.average.yearc$rasterlayer.mean, type = "l", main = "Average January Minimum Temperature across Indiana", xlab = "Years (2010-2020)", ylab = "Average Minimum Temperature (C)", cex.main=0.9, cex.lab=0.8, xlim=c(2011,2019))
+abline(lsfit(yearsc, climate.average.yearc$rasterlayer.mean), col = "red")
+year.fitc = lm(climate.average.yearc$rasterlayer.mean~yearsc)
+summary(year.fitc)
+```
+
+## average minimum average January temperatures per grid across study timeframe
+```{r}
+# calculate mean per grid and convert to raster for current time period
+climate.average.gridc <- mean(climate.brickc)
+```
+
+## calculate average minimum January temperature per county
+```{r}
+# Extract raster values to list object for current time period
+grid.raster.valuesc <- raster::extract(climate.average.gridc, indiana)
+# Use list apply to calculate mean for each polygon
+county.raster.valuesc <- lapply(grid.raster.valuesc, FUN=mean)
+# list to dataframe
+county.raster.valuesc <- unlist(county.raster.valuesc)
+# Join mean values to polygon data
+indiana$MEANMINAVC <- county.raster.valuesc
+```
+
+# plot mean January minimum temperatures per Indiana county
+```{r}
+# plot current temperature
+tm_shape(indiana, projection="+init=epsg:4326") + tm_polygons("MEANMINAVC", border.col = "grey30", title="Temperature (C)", labels = c("b: -9 to -8", "c: -8 to -7", "d: -7 to -6", "e: -6 to -5", "f: -5 to -4")) + tm_compass(position=c("right", "top"), text.size = .4) + tm_layout(main.title = "Mean Minimum January Temperature (2010-2020)", 
+          main.title.size = .8, 
+          main.title.fontface = 2, 
+          legend.title.fontface = 2,
+          legend.title.size = .95,
+          title.position = c("center", "top"), 
+          legend.text.size=.6, 
+          compass.type = "rose",
+          inner.margins=c(.1,.1,.2,.4), 
+          aes.palette = list(seq = "-RdBu"),
+          legend.outside = T, 
+          legend.position = c("left", "center")) + tm_scale_bar(size = 0.4, position = c("right", "bottom"))
+```
+
+## create list of counties per historical climate segments
+```{r}
+# generate list of segment numbers
+letters <- c("a", "b", "c", "d", "e", "f")
+segments <- data.frame(paste(letters, "Climate Segment"))
+colnames(segments)[1] <- "Segment"
+# add segments column to Indiana polygon data
+indiana$HISTORICALSEGMENT <- cut(indiana$MEANMINAV, breaks=c(-4,-5,-6,-7,-8,-9,-10), labels=segments$Segment)
+indiana$CURRENTSEGMENT <- cut(indiana$MEANMINAVC, breaks=c(-4,-5,-6,-7,-8,-9,-10), labels=segments$Segment)
+indiana$HISTORICALSEGMENT <- as.vector(indiana$HISTORICALSEGMENT)
+indiana$CURRENTSEGMENT <- as.vector(indiana$CURRENTSEGMENT)
+# create dataframe with county and segments
+countysegments <- data.frame(indiana$NAME)
+colnames(countysegments)[1] <- "county"
+countysegments$historicalsegment <- indiana$HISTORICALSEGMENT
+countysegments$currentsegment <- indiana$CURRENTSEGMENT
+```
+
+# prepare for multinomial test for segment a
+```{r}
+# prepare column that defines segments: segment of interest equals true and other equals false
+countysegments <- countysegments %>% mutate(test_seg=ifelse(historicalsegment=='a Climate Segment',T,F))
+# create odds dataframe
+odds <- as.data.frame(unique(countysegments$test_seg))
+colnames(odds)[1] <- "Segments"
+odds$Odds <- c(0.05,0.95)
+# create counts
+counts <- as.numeric(rbind(17, 0))
+```
+
+# conduct Exact Multinomial Test
+```{r}
+pvaluesa <- array(c(0), dim = 1)
+for(i in 1:1){
+  pvaluesa[i] = 
+multinomial.test(counts, odds$Odds)$p.value}
+```
+
+# prepare for multinomial test for segment b
+```{r}
+# prepare column that defines segments: segment of interest equals true and other equals false
+countysegments <- countysegments %>% mutate(test_seg=ifelse(historicalsegment=='b Climate Segment',T,F))
+# count occurrences per true and false segments
+counts <- dcast(countysegments, currentsegment ~ test_seg)
+# keep only segment of interest
+counts <- counts[grepl(paste("b Climate Segment", collapse="|"), counts$currentsegment),]
+colnames(counts) <- c("currentsegment", "x", "y")
+counts <- as.numeric(rbind(counts$x, counts$y))
+```
+
+# conduct Exact Multinomial Test
+```{r}
+pvaluesb <- array(c(0), dim = 1)
+for(i in 1:1){
+  pvaluesb[i] = 
+multinomial.test(counts, odds$Odds)$p.value}
+```
+
+# prepare for multinomial test for segment c
+```{r}
+# prepare column that defines segments: segment of interest equals true and other equals false
+countysegments <- countysegments %>% mutate(test_seg=ifelse(historicalsegment=='c Climate Segment',T,F))
+# count occurrences per true and false segments
+counts <- dcast(countysegments, currentsegment ~ test_seg)
+# keep only segment of interest
+counts <- counts[grepl(paste("c Climate Segment", collapse="|"), counts$currentsegment),]
+colnames(counts) <- c("currentsegment", "x", "y")
+counts <- as.numeric(rbind(counts$x, counts$y))
+```
+
+# conduct Exact Multinomial Test
+```{r}
+pvaluesc <- array(c(0), dim = 1)
+for(i in 1:1){
+  pvaluesc[i] = 
+multinomial.test(counts, odds$Odds)$p.value}
+```
+
+# prepare for multinomial test for segment d
+```{r}
+# prepare column that defines segments: segment of interest equals true and other equals false
+countysegments <- countysegments %>% mutate(test_seg=ifelse(historicalsegment=='d Climate Segment',T,F))
+# count occurrences per true and false segments
+counts <- dcast(countysegments, currentsegment ~ test_seg)
+# keep only segment of interest
+counts <- counts[grepl(paste("d Climate Segment", collapse="|"), counts$currentsegment),]
+colnames(counts) <- c("currentsegment", "x", "y")
+counts <- as.numeric(rbind(counts$x, counts$y))
+```
+
+# conduct Exact Multinomial Test
+```{r}
+pvaluesd <- array(c(0), dim = 1)
+for(i in 1:1){
+  pvaluesd[i] = 
+multinomial.test(counts, odds$Odds)$p.value}
+```
+
+# prepare for multinomial test for segment e
+```{r}
+# prepare column that defines segments: segment of interest equals true and other equals false
+countysegments <- countysegments %>% mutate(test_seg=ifelse(historicalsegment=='e Climate Segment',T,F))
+# count occurrences per true and false segments
+counts <- dcast(countysegments, currentsegment ~ test_seg)
+# keep only segment of interest
+counts <- counts[grepl(paste("e Climate Segment", collapse="|"), counts$currentsegment),]
+colnames(counts) <- c("currentsegment", "x", "y")
+counts <- as.numeric(rbind(counts$x, counts$y))
+```
+
+# conduct Exact Multinomial Test
+```{r}
+pvaluese <- array(c(0), dim = 1)
+for(i in 1:1){
+  pvaluese[i] = 
+multinomial.test(counts, odds$Odds)$p.value}
+```
+
+# prepare for multinomial test for segment f
+```{r}
+# prepare column that defines segments: segment of interest equals true and other equals false
+countysegments <- countysegments %>% mutate(test_seg=ifelse(historicalsegment=='f Climate Segment',T,F))
+# count occurrences per true and false segments
+counts <- dcast(countysegments, currentsegment ~ test_seg)
+# keep only segment of interest
+counts <- counts[grepl(paste("f Climate Segment", collapse="|"), counts$currentsegment),]
+colnames(counts) <- c("currentsegment", "x", "y")
+counts <- as.numeric(rbind(counts$x, counts$y))
+```
+
+# conduct Exact Multinomial Test
+```{r}
+pvaluesf <- array(c(0), dim = 1)
+for(i in 1:1){
+  pvaluesf[i] = 
+multinomial.test(counts, odds$Odds)$p.value}
+```
+
+# combine p-values into one dataframe and utilize FDR
+```{r}
+# combine
+pvaluessegments <- as.data.frame(rbind(pvaluesa, pvaluesb, pvaluesc, pvaluesd, pvaluese, pvaluesf))
+colnames(pvaluessegments)[1] <- "pvalues"
+# FDR
+pvaluessegments$padj = p.adjust(pvaluessegments$pvalues, method="fdr")
+```
+
+# export indiana shapefile
+```{r}
+writeOGR(obj=indiana, dsn="Indiana_Counties_3", layer="indiana3", driver="ESRI Shapefile")
+```
+
