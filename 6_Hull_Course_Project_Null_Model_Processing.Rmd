@@ -1,0 +1,57 @@
+---
+title: "Hull Course Project Applied Spatial Statistics Fall 2021"
+output: html_notebook
+---
+## set working directory
+```{r}
+setwd("~/Indiana PhD/IU--Applied Spatial Statistics/Course_Project")
+```
+
+## install/load necessary packages
+```{r}
+# install/load data parsing packages
+if(!require(dplyr)){install.packages("dplyr")}
+library(dplyr)
+if(!require(tidyr)){install.packages("tidyr")}
+library(tidyr)
+if(!require(data.table)){install.packages("data.table")}
+library(data.table)
+if(!require(stringr)){install.packages("stringr")}
+library(stringr)
+if(!require(lubridate)){install.packages("lubridate")}
+library(lubridate)
+# install/load map and raster packages
+if(!require(sf)){install.packages("sf")}
+library(sf)
+if(!require(tmap)){install.packages("tmap")}
+library(tmap)
+if(!require(rgdal)){install.packages("rgdal")}
+library(rgdal)
+if(!require(sp)){install.packages("sp")}
+library(sp)
+if(!require(raster)){install.packages("raster")}
+library(raster)
+# install/load exact multinomial test packages
+if(!require(EMT)){install.packages("EMT")}
+library(EMT)
+if(!require(purrr)){install.packages("purrr")}
+library(purrr)
+```
+
+# read in preliminary results and subset significant species
+```{r}
+# load
+nullmodelresults <- read.csv("nullmodelresults.csv")
+modela5 <- read.csv("modela5.csv", header=T)
+# subset nonsignificant species
+pvaluesnonsig <- nullmodelresults[nullmodelresults$padj > 0.05,]
+# subset significant species
+pvaluessig <- nullmodelresults[nullmodelresults$padj < 0.05,]
+```
+
+## subset species model by significant species
+```{r}
+# subset
+sigmodela5 <- subset(modela5, speciesName %in% pvaluessig$speciesName)
+write.csv(sigmodela5, "sigmodela5.csv")
+```

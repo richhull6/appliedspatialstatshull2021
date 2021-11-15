@@ -1,0 +1,168 @@
+---
+title: "Hull Course Project Applied Spatial Statistics Fall 2021"
+output: html_notebook
+---
+## set working directory
+```{r}
+setwd("~/Indiana PhD/IU--Applied Spatial Statistics/Course_Project")
+```
+
+## install/load necessary packages
+```{r}
+# install/load data parsing packages
+if(!require(dplyr)){install.packages("dplyr")}
+library(dplyr)
+if(!require(tidyr)){install.packages("tidyr")}
+library(tidyr)
+if(!require(data.table)){install.packages("data.table")}
+library(data.table)
+if(!require(stringr)){install.packages("stringr")}
+library(stringr)
+if(!require(lubridate)){install.packages("lubridate")}
+library(lubridate)
+# install/load map and raster packages
+if(!require(sf)){install.packages("sf")}
+library(sf)
+if(!require(tmap)){install.packages("tmap")}
+library(tmap)
+if(!require(rgdal)){install.packages("rgdal")}
+library(rgdal)
+if(!require(sp)){install.packages("sp")}
+library(sp)
+if(!require(raster)){install.packages("raster")}
+library(raster)
+# install/load exact multinomial test packages
+if(!require(EMT)){install.packages("EMT")}
+library(EMT)
+if(!require(purrr)){install.packages("purrr")}
+library(purrr)
+```
+
+## import segment odds
+```{r}
+climatesegmentprobs <- read.csv("climatesegmentprobs.csv", header = T)
+```
+
+## Create alternative models
+```{r}
+# generate all possible combinations of models in order and in reverse order (climate model has no jumps)
+subseq <- function(n,k) if (1 <= k && k <= n) outer(1:k, 0:(n-k), "+")
+# forward order without breaks
+zf1 <- subseq(6, 1)
+zf2 <- subseq(6, 2)
+zf3 <- subseq(6, 3)
+zf4 <- subseq(6, 4)
+zf5 <- subseq(6, 5)
+# backwards order without breaks
+zr2 <- zf2[nrow(zf2):1,]
+zr3 <- zf3[nrow(zf3):1,]
+zr4 <- zf4[nrow(zf4):1,]
+zr5 <- zf5[nrow(zf5):1,]
+# combine orders
+z1 <- zf1
+z2 <- cbind(zf2, zr2)
+z3 <- cbind(zf3, zr3)
+z4 <- cbind(zf4, zr4)
+z5 <- cbind(zf5, zr5)
+# replace numbers with climate segments
+library = setNames(c("a Climate Segment", "b Climate Segment", "c Climate Segment", "d Climate Segment", "e Climate Segment", "f Climate Segment"), c("1", "2", "3", "4", "5", "6"))
+z1[] <- library[unlist(z1)]
+z1 <- as.data.frame(t(z1))
+z2[] <- library[unlist(z2)]
+z2 <- as.data.frame(t(z2))
+z3[] <- library[unlist(z3)]
+z3 <- as.data.frame(t(z3))
+z4[] <- library[unlist(z4)]
+z4 <- as.data.frame(t(z4))
+z5[] <- library[unlist(z5)]
+z5 <- as.data.frame(t(z5))
+# create model names
+z1MODELNAME <- as.data.frame(paste(z1$V1, z1$V1))
+z2MODELNAME <- as.data.frame(paste(z2$V1, z2$V2))
+z2MODELNAME <- z2MODELNAME[rep(seq_len(nrow(z2MODELNAME)), each = 2), ]
+z3MODELNAME <- as.data.frame(paste(z3$V1, z3$V3))
+z3MODELNAME <- z3MODELNAME[rep(seq_len(nrow(z3MODELNAME)), each = 3), ]
+z4MODELNAME <- as.data.frame(paste(z4$V1, z4$V4))
+z4MODELNAME <- z4MODELNAME[rep(seq_len(nrow(z4MODELNAME)), each = 4), ]
+z5MODELNAME <- as.data.frame(paste(z5$V1, z5$V5))
+z5MODELNAME <- z5MODELNAME[rep(seq_len(nrow(z5MODELNAME)), each = 5), ]
+# merge column names with data)
+z1 <- t(z1)
+z1 <- matrix(z1, ncol=1)
+z1 <- as.data.frame(z1)
+z1$MODELNAME <- z1MODELNAME$`paste(z1$V1, z1$V1)`
+colnames(z1) <- c("SEGMENT", "MODELNAME")
+z2 <- t(z2)
+z2 <- matrix(z2, ncol=1)
+z2 <- as.data.frame(z2)
+colnames(z2)[1] <- "SEGMENT"
+z2$MODELNAME <- z2MODELNAME
+z3 <- t(z3)
+z3 <- matrix(z3, ncol=1)
+z3 <- as.data.frame(z3)
+colnames(z3)[1] <- "SEGMENT"
+z3$MODELNAME <- z3MODELNAME
+z4 <- t(z4)
+z4 <- matrix(z4, ncol=1)
+z4 <- as.data.frame(z4)
+colnames(z4)[1] <- "SEGMENT"
+z4$MODELNAME <- z4MODELNAME
+z5 <- t(z5)
+z5 <- matrix(z5, ncol=1)
+z5 <- as.data.frame(z5)
+colnames(z5)[1] <- "SEGMENT"
+z5$MODELNAME <- z5MODELNAME
+```
+
+# create alternative models base odds
+```{r}
+# calculate odds for each major segment (each minor segment gets 0.09)
+x1 <- nrow(z1)
+x2 <- nrow(z2)
+x3 <- nrow(z3)
+x4 <- nrow(z4)
+x5 <- nrow(z5)
+x11 <- (1 - (6 - 1)*0.09)/1
+x22 <- (1 - (6 - 2)*0.09)/2
+x33 <- (1 - (6 - 3)*0.09)/3
+x44 <- (1 - (6 - 4)*0.09)/4
+x55 <- (1 - (6 - 5)*0.09)/5
+# add odds to dataframes
+z1$UNWEIGHTEDCHANCE <- x11
+z2$UNWEIGHTEDCHANCE <- x22
+z3$UNWEIGHTEDCHANCE <- x33
+z4$UNWEIGHTEDCHANCE <- x44
+z5$UNWEIGHTEDCHANCE <- x55
+# append dataframes
+z <- rbind(z1, z2, z3, z4, z5)
+# add minor segments, each with 0.09 probability of occurrence
+modelnames <- data.frame(unique(z$MODELNAME))
+colnames(modelnames)[1] <- "MODELNAME"
+climatesegs11 <- data.frame(unique(z$SEGMENT))
+colnames(climatesegs11)[1] <- "SEGMENT"
+altmodels <- complete(z, climatesegs11, modelnames, fill = list(count = 0))
+altmodels[is.na(altmodels)] <- 0.09
+# Reorder data by alternative models
+altmodels <- altmodels[with(altmodels, order(MODELNAME, SEGMENT)), ]
+```
+
+## Weight chances for alternative models
+```{r}
+# calculate weights for each alternative models
+WeightedChanceMean <- mean(climatesegmentprobs$WEIGHTEDCHANCE)
+climatesegmentprobs$CHANCEDIFFFROMMEAN <- climatesegmentprobs$WEIGHTEDCHANCE - WeightedChanceMean
+# add weights to alt models using segment names
+weightchance <- as.data.frame(climatesegmentprobs$CHANCEDIFFFROMMEAN)
+colnames(weightchance)[1] <- "WEIGHTCHANCE"
+y <- as.numeric(length(unique(z$MODELNAME)))
+weightchance <- do.call("rbind", replicate(y, weightchance, simplify = FALSE))
+altmodels$CHANCEDIFFFROMMEAN <- weightchance$WEIGHTCHANCE
+# calculated weighted probabilities
+altmodels$WEIGHTEDCHANCE <- altmodels$UNWEIGHTEDCHANCE + altmodels$CHANCEDIFFFROMMEAN
+```
+
+# export
+```{r}
+write.csv(altmodels, "altmodels.csv", row.names=F)
+```
+

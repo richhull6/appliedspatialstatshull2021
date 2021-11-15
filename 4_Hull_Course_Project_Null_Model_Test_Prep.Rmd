@@ -1,0 +1,109 @@
+---
+title: "Hull Course Project Applied Spatial Statistics Fall 2021"
+output: html_notebook
+---
+## set working directory
+```{r}
+setwd("~/Indiana PhD/IU--Applied Spatial Statistics/Course_Project")
+```
+
+## install/load necessary packages
+```{r}
+# install/load data parsing packages
+if(!require(dplyr)){install.packages("dplyr")}
+library(dplyr)
+if(!require(tidyr)){install.packages("tidyr")}
+library(tidyr)
+if(!require(data.table)){install.packages("data.table")}
+library(data.table)
+if(!require(stringr)){install.packages("stringr")}
+library(stringr)
+if(!require(lubridate)){install.packages("lubridate")}
+library(lubridate)
+# install/load map and raster packages
+if(!require(sf)){install.packages("sf")}
+library(sf)
+if(!require(tmap)){install.packages("tmap")}
+library(tmap)
+if(!require(rgdal)){install.packages("rgdal")}
+library(rgdal)
+if(!require(sp)){install.packages("sp")}
+library(sp)
+if(!require(raster)){install.packages("raster")}
+library(raster)
+# install/load exact multinomial test packages
+if(!require(EMT)){install.packages("EMT")}
+library(EMT)
+if(!require(purrr)){install.packages("purrr")}
+library(purrr)
+```
+
+## upload site species matrix
+```{r}
+sitesp2 <- read.csv("sitesp2.csv")
+```
+
+
+## Upload shapefile with Indiana counties
+```{r warning=FALSE}
+# upload shapefile with Indiana counties
+indiana1 <- shapefile("~/Indiana PhD/IU--Applied Spatial Statistics/Course_Project/Indiana_Counties_2/indiana2.shp")
+# change CRS to WGS84
+indiana <- spTransform(indiana1, CRS=CRS("+proj=longlat +datum=WGS84"))
+```
+
+## create list of counties per segment
+```{r}
+# generate list of segment numbers
+letters <- c("a", "b", "c", "d", "e", "f")
+segments <- data.frame(paste(letters, "Climate Segment"))
+colnames(segments)[1] <- "Segment"
+# add segment column to indiana polygon data
+indiana$SEGMENT <- cut(indiana$MEANMINAV, breaks=c(-4,-5,-6,-7,-8,-9,-10), labels=segments$Segment)
+indiana$SEGMENT <- as.vector(indiana$SEGMENT)
+# create dataframe with county and segment
+countysegments <- data.frame(indiana$NAME)
+colnames(countysegments)[1] <- "county"
+countysegments$segment <- indiana$SEGMENT
+```
+
+# calculate the probability an occurrence happens in a county
+```{r}
+# calculate un-weighted chance of occurrence in each county
+n <- length(indiana$ALAND)
+indiana$UNWEIGHTEDCHANCE <- 1/n
+# calculate weights based off of county land area
+indiana$WEIGHTS <- indiana$ALAND / mean(indiana$ALAND)
+# calculate weighted chance of occurrence in one county using area weights
+indiana$WEIGHTEDCHANCE <- indiana$UNWEIGHTEDCHANCE * indiana$WEIGHTS
+```
+
+# calculate the probability an occurrence happens in a climate segment
+```{r}
+# sum county occurrences by climate segment to get the probabilities of an occurrence happening in any climate segment
+climatesegmentprobs <- aggregate(WEIGHTEDCHANCE ~ SEGMENT, indiana, sum)
+name <- as.data.frame(indiana$NAME)
+name$SEGMENT <- indiana$SEGMENT
+name <- left_join(name, climatesegmentprobs)
+indiana$CLIMATESEGCHANCE <- name$WEIGHTEDCHANCE
+```
+
+## Assign species data to counties and climate segments
+```{r}
+## Merge copy of ctydata and specdata
+modela <- merge(countysegments, sitesp2, all.x = TRUE)
+## Create new column with combined latitudinal segments and species
+modela$climatesp <- paste(modela$segment, "Divide", modela$speciesName)
+```
+
+## Add one
+```{r}
+## Create new column with occurence values (1)
+modela$occval <- 1
+```
+
+## Write modela and climate probabilities to csv
+```{r}
+write.csv(modela5, "modela5.csv", row.names=F)
+write.csv(climatesegmentprobs, "climatesegmentprobs.csv", row.names = F)
+```

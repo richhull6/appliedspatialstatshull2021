@@ -40,56 +40,34 @@ colnames(modela3)[1] <- "climateSegment"
 colnames(modela3)[2] <- "speciesName"
 
 ## Add 0's for species that do not occur in specific latitudinal segments
-## Construct dataframe with a latitudinal segment for each species and a column of 0's
-speciesnames <- data.frame(unique(modela$speciesName))
-colnames(speciesnames)[1] <- "speciesName"
-y <- length(speciesnames$speciesName)
-climatesegs <- data.frame(unique(modela3$climateSegment))
-colnames(climatesegs)[1] <- "climateSegs"
-z <- length(climatesegs$climateSegs)
-climatesegs2 <- do.call("rbind", replicate(y, climatesegs, simplify = FALSE))
-speciesnames2 <- do.call("rbind", replicate(z, speciesnames, simplify = FALSE))
-speciesnames3 <- data.frame(speciesnames2[order(speciesnames2$speciesName),])
-colnames(speciesnames3)[1] <- "species"
-climatesegs2$species <- speciesnames3$species
-climatesegs2$zero <- 0
-## Re-order counts of species within latitudinal segments by species and insert "l" in latitude column
-modela4 <- data.frame(modela3[order(modela3$speciesName, modela3$climateSegment),])
-modela4$climateseg2 <- paste(modela4$climateSegment,modela4$c, sep ="")
-## Keep only desired columns and rename columns appropriately between climateseg2 and modela4
-modela5 <- subset(modela4, select = c(speciesName, count, climateseg2))
-colnames(modela5)[3] <- "climateseg"
-colnames(climatesegs2) <- c("climateseg", "speciesName", "count")
 ## Insert 0 for climate seg occurences with no records
-climatesegsc <- data.frame(unique(modela5$climateseg))
-colnames(climatesegsc)[1] <- "climateseg"
-modela6 <- complete(modela5, climatesegsc, speciesName, fill = list(count = 0))
+climatesegsc <- data.frame(unique(modela3$climateSegment))
+colnames(climatesegsc)[1] <- "climateSegment"
+modela4 <- complete(modela3, climatesegsc, speciesName, fill = list(count = 0))
 # Reorder data by climate segments
-modela7 <- modela6[with(modela6, order(speciesName, climateseg)), ]
+modela5 <- modela4[with(modela4, order(speciesName, climateSegment)), ]
 
 ## prepare data for exact multinomial test
-## Count number of species
-z <- length(speciesnames$speciesName)
 ## Group counts by species
-modela8 <- subset(modela7, select = c(speciesName, count))
-modela9 <- modela8 %>% group_by(speciesName) %>% summarize(speciesCount = list(count))
-## Create empty vector for p-values
-pvalues1 <- array(c(0), dim = z)
+modela6 <- subset(modela5, select = c(speciesName, count))
+modela7 <- modela6 %>% group_by(speciesName) %>% summarize(speciesCount = list(count))
 ## Create list of vectors, with each vector containing counts of species
-modela10 <- (as.vector(modela9$speciesCount))
+modela8 <- (as.vector(modela7$speciesCount))
+## Count number of species
+z <- as.numeric(length(modela8))
+## Create empty vector for p-values
+pvalues1 <- array(c(0), dim = c(1))
 
 ## Conduct Exact Multinomial Test
 ## Conduct exact multinomial test and output p-values for each species
-set.seed(1)
-for(i in 1:z){
-  pvalues1[i] = 
-    multinomial.test(modela10[[i]], climatesegmentprobs$WEIGHTEDCHANCE, useChisq = TRUE)$p.value}
+for (i in 1:z){
+  pvalues1[i] <- multinomial.test(modela8[[i]], climatesegmentprobs$WEIGHTEDCHANCE)$p.value}
 
 ## Set vector of p-values as dataframe, insert species names, and correct p-values for using same dataframe
 ## Set vector of p-values as dataframe
 pvalues2 <- as.data.frame(pvalues1)
 ## Insert species names and pair with corresponding p-values
-pvalues2$speciesName <- modela9$speciesName
+pvalues2$speciesName <- modela7$speciesName
 ## Correct p-values by false discovery rate
 pvalues2$padj = p.adjust(pvalues2$pvalues1, method="fdr")
 write.csv(pvalues2, "preliminaryresults.csv")
