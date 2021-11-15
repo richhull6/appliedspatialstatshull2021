@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 ---
 title: "Hull Course Project Applied Spatial Statistics Fall 2021"
 output: html_notebook
@@ -123,3 +124,130 @@ tm_shape(indiana, projection="+init=epsg:4326") + tm_polygons("MEANMINAV", borde
 ```{r}
 writeOGR(obj=indiana, dsn="Indiana_Counties_2", layer="indiana2", driver="ESRI Shapefile")
 ```
+=======
+---
+title: "Hull Course Project Applied Spatial Statistics Fall 2021"
+output: html_notebook
+---
+## set working directory
+```{r}
+setwd("~/Indiana PhD/IU--Applied Spatial Statistics/Course_Project")
+```
+
+## install/load necessary packages
+```{r}
+# install/load data parsing packages
+if(!require(dplyr)){install.packages("dplyr")}
+library(dplyr)
+if(!require(tidyr)){install.packages("tidyr")}
+library(tidyr)
+if(!require(data.table)){install.packages("data.table")}
+library(data.table)
+if(!require(stringr)){install.packages("stringr")}
+library(stringr)
+if(!require(lubridate)){install.packages("lubridate")}
+library(lubridate)
+# install/load map and raster packages
+if(!require(sf)){install.packages("sf")}
+library(sf)
+if(!require(tmap)){install.packages("tmap")}
+library(tmap)
+if(!require(rgdal)){install.packages("rgdal")}
+library(rgdal)
+if(!require(sp)){install.packages("sp")}
+library(sp)
+if(!require(raster)){install.packages("raster")}
+library(raster)
+# install/load exact multinomial test packages
+if(!require(EMT)){install.packages("EMT")}
+library(EMT)
+if(!require(purrr)){install.packages("purrr")}
+library(purrr)
+```
+
+## import data
+```{r}
+# upload shapefile with Indiana counties
+indiana1 <- shapefile("~/Indiana PhD/IU--Applied Spatial Statistics/Course_Project/Indiana_Counties/Indiana_Counties.shp")
+# change CRS to WGS84
+indiana <- spTransform(indiana1, CRS=CRS("+proj=longlat +datum=WGS84"))
+```
+
+## import nc file containing climate data. Data is originally from: https://www.ncei.noaa.gov/data/nclimgrid-monthly/access/.
+```{r}
+# import data
+climate1.brick <- brick("nclimgrid_tmin.nc")
+# transform shapefile CRS to match raster CRS
+indiana <- spTransform(indiana, crs(climate1.brick))
+```
+
+## subset raster data for study period and calculate a January layer by averaging January values into one raster layer
+```{r}
+# get layer names
+layer_names <- names(climate1.brick)
+# create vector of layer names to keep (January from 1896-1952)
+years <- c(1896:1952)
+layers_keep <- paste("X",years,".01",".01",sep="")
+# keep layers if they contain 1896-1952
+climate2.brick <- climate1.brick[[layers_keep]]
+```
+
+## mask raster data by Indiana shapefile
+```{r}
+climate.brick = mask(climate2.brick, indiana)
+```
+
+## calculate average minimum January temperature across Indiana per year
+```{r}
+# calculate average minimum January temperature per year
+climate.average.year <- data.frame(rasterlayer.mean=cellStats(climate.brick, "mean"))
+```
+
+## plot time series of average minimum January temperature across Indiana per year
+```{r}
+plot(years,climate.average.year$rasterlayer.mean, type = "l", main = "Average January Minimum Temperature across Indiana", xlab = "Years (1896-1952)", ylab = "Average Minimum Temperature (C)", cex.main=0.9, cex.lab=0.8, xlim=c(1898,1950))
+abline(lsfit(years, climate.average.year$rasterlayer.mean), col = "red")
+year.fit = lm(climate.average.year$rasterlayer.mean~years)
+summary(year.fit)
+```
+
+## average minimum average January temperatures per grid across study timeframe
+```{r}
+# calculate mean per grid and convert to raster
+climate.average.grid <- mean(climate.brick)
+```
+
+## calculate average minimum January temperature per county
+```{r}
+# Extract raster values to list object
+grid.raster.values <- raster::extract(climate.average.grid, indiana)
+# Use list apply to calculate mean for each polygon
+county.raster.values <- lapply(grid.raster.values, FUN=mean)
+# list to dataframe
+county.raster.values <- unlist(county.raster.values)
+# Join mean values to polygon data
+indiana$MEANMINAV <- county.raster.values
+```
+
+# plot mean January minimum temperatures per Indiana county
+```{r}
+# plot
+tm_shape(indiana, projection="+init=epsg:4326") + tm_polygons("MEANMINAV", border.col = "grey30", title="Temperature (C)", n = 6, labels = c("Segment a: -10 to -9", "Segment b: -9 to -8", "Segment c: -8 to -7", "Segment d: -7 to -6", "Segment e: -6 to -5", "Segment f: -5 to -4")) + tm_compass(position=c("right", "top"), text.size = .4) + tm_layout(main.title = "Mean Minimum January Temperature (1896-1952)", 
+          main.title.size = .85, 
+          main.title.fontface = 2, 
+          legend.title.fontface = 2,
+          legend.title.size = .95,
+          title.position = c("center", "top"), 
+          legend.text.size=.6, 
+          compass.type = "rose",
+          inner.margins=c(.1,.1,.2,.4), 
+          aes.palette = list(seq = "-RdBu"),
+          legend.outside = T, 
+          legend.position = c("right", "top")) + tm_scale_bar(size = 0.4)
+```
+
+## export shapefile
+```{r}
+writeOGR(obj=indiana, dsn="Indiana_Counties_2", layer="indiana2", driver="ESRI Shapefile")
+```
+>>>>>>> b1fb11f5d93378a74feebd963fd9f1464e8b1d91

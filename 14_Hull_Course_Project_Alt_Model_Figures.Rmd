@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 ---
 title: "Hull Course Project Applied Spatial Statistics Fall 2021"
 output: html_notebook
@@ -198,3 +199,205 @@ tm_shape(indiana, projection="+init=epsg:4326") + tm_polygons("N5", border.col =
 
 
 
+=======
+---
+title: "Hull Course Project Applied Spatial Statistics Fall 2021"
+output: html_notebook
+---
+## set working directory
+```{r}
+setwd("~/Indiana PhD/IU--Applied Spatial Statistics/Course_Project")
+```
+
+## install/load necessary packages
+```{r}
+# install/load data parsing packages
+if(!require(dplyr)){install.packages("dplyr")}
+library(dplyr)
+if(!require(tidyr)){install.packages("tidyr")}
+library(tidyr)
+if(!require(data.table)){install.packages("data.table")}
+library(data.table)
+if(!require(stringr)){install.packages("stringr")}
+library(stringr)
+if(!require(lubridate)){install.packages("lubridate")}
+library(lubridate)
+# install/load map and raster packages
+if(!require(sf)){install.packages("sf")}
+library(sf)
+if(!require(tmap)){install.packages("tmap")}
+library(tmap)
+if(!require(rgdal)){install.packages("rgdal")}
+library(rgdal)
+if(!require(sp)){install.packages("sp")}
+library(sp)
+if(!require(raster)){install.packages("raster")}
+library(raster)
+# install/load exact multinomial test packages
+if(!require(EMT)){install.packages("EMT")}
+library(EMT)
+if(!require(purrr)){install.packages("purrr")}
+library(purrr)
+```
+
+## import data
+```{r}
+highestfitpermodel <- read.csv("highestfitpermodel.csv")
+altmodelbestfits <- read.csv("altmodelbestfits.csv")
+sitesp2 <- read.csv("sitesp2.csv")
+ctynames <- read.csv("ctynames.csv", header = T)
+colnames(ctynames)[1] <- "county"
+# upload shapefile with Indiana counties
+indiana1 <- shapefile("~/Indiana PhD/IU--Applied Spatial Statistics/Course_Project/Indiana_Counties_2/indiana2.shp")
+# change CRS to WGS84
+indiana <- spTransform(indiana1, CRS=CRS("+proj=longlat +datum=WGS84"))
+```
+
+# subset data by species that best fit each model
+```{r}
+# remove white space from species that best fit each model
+hfpm <- highestfitpermodel %>% 
+  mutate(across(where(is.character), str_trim))
+```
+
+## subset for Aesculus flava
+```{r}
+# subset species
+aesculusflava <- sitesp2[grepl(paste("Aesculus flava", collapse="|"), sitesp2$speciesName),]
+# keep desired columns
+aesculusflava <- subset(aesculusflava, select = c(county, speciesName, n))
+# extract county names from Indiana shapefile
+countynames <- as.data.frame(indiana$NAME)
+colnames(countynames)[1] <- "county"
+# complete county names and fill n2 with zeros for new counties
+aesculusflava <- complete(aesculusflava, countynames, speciesName, fill = list(count = 0))
+aesculusflava[is.na(aesculusflava)] <- 0
+# reorder based on Indiana shapefile
+aesculusflava <- aesculusflava[order(match(aesculusflava$county,countynames$county)),]
+indiana$N <- aesculusflava$n
+```
+
+## subset for Cuscuta campestris
+```{r}
+# subset species
+cuscutacamp <- sitesp2[grepl(paste("Cuscuta campestris", collapse="|"), sitesp2$speciesName),]
+# keep desired columns
+cuscutacamp <- subset(cuscutacamp, select = c(county, speciesName, n))
+# extract county names from Indiana shapefile
+countynames <- as.data.frame(indiana$NAME)
+colnames(countynames)[1] <- "county"
+# complete county names and fill n2 with zeros for new counties
+cuscutacamp <- complete(cuscutacamp, countynames, speciesName, fill = list(count = 0))
+cuscutacamp[is.na(cuscutacamp)] <- 0
+# reorder based on Indiana shapefile
+cuscutacamp <- cuscutacamp[order(match(cuscutacamp$county,countynames$county)),]
+indiana$N2 <- cuscutacamp$n
+```
+
+## subset for Scutellaria incana
+```{r}
+# subset species
+scutellaria <- sitesp2[grepl(paste("Scutellaria incana", collapse="|"), sitesp2$speciesName),]
+# keep desired columns
+scutellaria <- subset(scutellaria, select = c(county, speciesName, n))
+# extract county names from Indiana shapefile
+countynames <- as.data.frame(indiana$NAME)
+colnames(countynames)[1] <- "county"
+# complete county names and fill n2 with zeros for new counties
+scutellaria <- complete(scutellaria, countynames, speciesName, fill = list(count = 0))
+scutellaria[is.na(scutellaria)] <- 0
+# reorder based on Indiana shapefile
+scutellaria <- scutellaria[order(match(scutellaria$county,countynames$county)),]
+indiana$N4 <- scutellaria$n
+```
+
+## map
+```{r}
+# plot
+sp1 <- tm_shape(indiana, projection="+init=epsg:4326") + tm_polygons("N", border.col = "grey30", title="Model:\ne Segment-\ne Segment\n\nAdjusted p-value:\n 0.73\n\nOccurrences:", breaks = c(0,1,2), labels = c("0", "1")) + tm_layout(main.title = "Aesculus flava", 
+          main.title.size = .8, 
+          main.title.fontface = 3,
+          legend.title.fontface = 2,
+          legend.title.size = .85,
+          title.position = c("center", "top"), 
+          legend.text.size= .7,
+          inner.margins=c(.1,.1,.2,.4), 
+          aes.palette = list(seq = "Greens"),
+          legend.outside = T, 
+          legend.position = c("RIGHT", "top"))
+
+sp2 <- tm_shape(indiana, projection="+init=epsg:4326") + tm_polygons("N2", border.col = "grey30", title="Model:\ne Segment-\nf Segment\n\nAdjusted p-value:\n 0.97\n\nOccurrences:", breaks = c(0,1,2), labels = c("0", "1")) + tm_layout(main.title = "Cuscuta campestris", 
+          main.title.size = .8, 
+          main.title.fontface = 3,
+          legend.title.fontface = 2,
+          legend.title.size = .85,
+          title.position = c("center", "top"), 
+          legend.text.size= .7,
+          inner.margins=c(.1,.1,.2,.4), 
+          aes.palette = list(seq = "Greens"),
+          legend.outside = T, 
+          legend.position = c("RIGHT", "top"))
+
+sp3 <- tm_shape(indiana, projection="+init=epsg:4326") + tm_polygons("N4", border.col = "grey30", title="Model:\nc Segment-\nf Segment\n\nAdjusted p-value:\n 0.43\n\nOccurrences:", breaks = c(0,1,2), labels = c("0", "1")) + tm_layout(main.title = "Scutellaria incana",
+          main.title.size = .8,
+          main.title.fontface = 3,
+          legend.title.fontface = 2,
+          legend.title.size = .85,
+          title.position = c("center", "top"), 
+          legend.text.size= .7,
+          inner.margins=c(.1,.1,.2,.4), 
+          aes.palette = list(seq = "Greens"),
+          legend.outside = T, 
+          legend.position = c("RIGHT", "top"))
+
+# map historical climate segments
+temp <- tm_shape(indiana, projection="+init=epsg:4326") + tm_polygons("MEANMINAV", border.col = "grey30", title="Temperature (C)", n = 6, labels = c("a: -10 to -9", "b: -9 to -8", "c: -8 to -7", "d: -7 to -6", "e: -6 to -5", "f: -5 to -4"))  + tm_layout(main.title = "Mean Minimum January Temperature (1896-1952)", 
+          main.title.size = .6, 
+          main.title.fontface = 1, 
+          legend.title.fontface = 2,
+          legend.title.size = .6,
+          title.position = c("center", "top"), 
+          legend.text.size=.6,
+          inner.margins=c(.1,.1,.2,.4), 
+          aes.palette = list(seq = "-RdBu"),
+          legend.outside = T, 
+          legend.position = c("RIGHT", "top")) + tm_scale_bar(size = 0.4, position = c("right", "BOTTOM"))
+
+tmap_arrange(sp1, sp2, sp3, temp, ncol = 2, nrow = 2, asp = NA)
+```
+## subset for Galium pilosum
+```{r}
+# subset species
+galium <- sitesp2[grepl(paste("Galium pilosum", collapse="|"), sitesp2$speciesName),]
+# keep desired columns
+galium <- subset(galium, select = c(county, speciesName, n))
+# extract county names from Indiana shapefile
+countynames <- as.data.frame(indiana$NAME)
+colnames(countynames)[1] <- "county"
+# complete county names and fill n2 with zeros for new counties
+galium <- complete(galium, countynames, speciesName, fill = list(count = 0))
+galium[is.na(galium)] <- 0
+# reorder based on Indiana shapefile
+galium <- galium[order(match(galium$county,countynames$county)),]
+indiana$N5 <- galium$n
+```
+
+# plot Galium pilosum
+```{r}
+tm_shape(indiana, projection="+init=epsg:4326") + tm_polygons("N5", border.col = "grey30", title="Occurrences:", breaks = c(0,1,2), labels = c("0", "1")) + tm_compass(position=c("RIGHT", "TOP"), text.size = .5) + tm_layout(main.title = "Galium pilosum", 
+          main.title.size = 1, 
+          main.title.fontface = 3,
+          legend.title.fontface = 2,
+          legend.title.size = .85,
+          title.position = c("center", "top"), 
+          legend.text.size= .7, 
+          compass.type = "rose",
+          inner.margins=c(.1,.1,.2,.4), 
+          aes.palette = list(seq = "Greens"),
+          legend.outside = T, 
+          legend.position = c("left", "center")) + tm_scale_bar(size = 0.5, position = c("RIGHT", "BOTTOM"))
+```
+
+
+
+>>>>>>> b1fb11f5d93378a74feebd963fd9f1464e8b1d91

@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 ---
 title: "Hull Course Project Applied Spatial Statistics Fall 2021"
 output: html_notebook
@@ -335,3 +336,342 @@ write.csv(pvaluespassifloraincarnata, "Passiflora_incarnata_results.csv", row.na
 ```
 
 
+=======
+---
+title: "Hull Course Project Applied Spatial Statistics Fall 2021"
+output: html_notebook
+---
+## set working directory
+```{r}
+setwd("~/Indiana PhD/IU--Applied Spatial Statistics/Course_Project")
+```
+
+## install/load necessary packages
+```{r}
+# install/load data parsing packages
+if(!require(dplyr)){install.packages("dplyr")}
+library(dplyr)
+if(!require(tidyr)){install.packages("tidyr")}
+library(tidyr)
+if(!require(data.table)){install.packages("data.table")}
+library(data.table)
+if(!require(stringr)){install.packages("stringr")}
+library(stringr)
+if(!require(lubridate)){install.packages("lubridate")}
+library(lubridate)
+# install/load map and raster packages
+if(!require(sf)){install.packages("sf")}
+library(sf)
+if(!require(tmap)){install.packages("tmap")}
+library(tmap)
+if(!require(rgdal)){install.packages("rgdal")}
+library(rgdal)
+if(!require(sp)){install.packages("sp")}
+library(sp)
+if(!require(raster)){install.packages("raster")}
+library(raster)
+# install/load exact multinomial test packages
+if(!require(EMT)){install.packages("EMT")}
+library(EMT)
+if(!require(purrr)){install.packages("purrr")}
+library(purrr)
+if(!require(reshape2)){install.packages("reshape2")}
+library(reshape2)
+```
+
+## import shapefile data
+```{r}
+# upload shapefile with Indiana counties
+indiana1 <- shapefile("~/Indiana PhD/IU--Applied Spatial Statistics/Course_Project/Indiana_Counties_3/indiana3.shp")
+# change CRS to WGS84
+indiana <- spTransform(indiana1, CRS=CRS("+proj=longlat +datum=WGS84"))
+```
+
+## import climate segment probabilities and site species matrix
+```{r}
+climatesegmentprobs <- read.csv("climatesegmentprobs.csv", header = T)
+sitesp2 <- read.csv("sitesp2.csv")
+```
+
+## import historical plant distribution data and subset Passiflora incarnata data
+```{r}
+sigmodela5 <- read.csv("sigmodela5.csv", header = T)
+histincarnata <- sigmodela5[grepl(paste("Passiflora incarnata", collapse="|"), sigmodela5$speciesName),]
+```
+
+## generate current data for Passiflora incarnata from data collected past 1952, available at: https://midwestherbaria.org/portal/collections/list.php.
+```{r}
+# add column of occurrences
+incarnata <- as.data.frame(indiana$NAME)
+colnames(incarnata)[1] <- "name"
+incarnata$occurrences <- 0
+# add one for counties with current occurrences of Passiflora incarnata on BONAP: Clark, Floyd, Monroe, Vanderburgh, and Washington
+countyrecords <- c("Clark", "Floyd", "Monroe", "Vanderburgh", "Washington")
+z <- incarnata[match(countyrecords, incarnata$name), ]
+z$occurrences <- 1
+incarnata[match(z$name, incarnata$name), ] <- z
+```
+
+## generate data to visualize historical and current Passiflora incarnata distributions
+```{r}
+# subset site species matrix for historical data
+passifloraincarnata <- sitesp2[grepl(paste("Passiflora incarnata", collapse="|"), sitesp2$speciesName),]
+# keep desired columns
+passifloraincarnata <- subset(passifloraincarnata, select = c(county, speciesName, n))
+# extract county names from Indiana shapefile
+countynames <- as.data.frame(indiana$NAME)
+colnames(countynames)[1] <- "county"
+# complete county names and fill n2 with zeros for new counties
+passifloraincarnata <- complete(passifloraincarnata, countynames, speciesName, fill = list(count = 0))
+passifloraincarnata[is.na(passifloraincarnata)] <- 0
+# reorder based on Indiana shapefile
+passifloraincarnata <- passifloraincarnata[order(match(passifloraincarnata$county,countynames$county)),]
+indiana$N1 <- passifloraincarnata$n
+# add current data to map
+indiana$N2 <- incarnata$occurrences
+```
+
+## visualize historical and current Passiflora incarnata distributions
+```{r}
+sp1 <- tm_shape(indiana, projection="+init=epsg:4326") + tm_polygons("N1", border.col = "grey30", title="Timeframe:\n\nHistoric-\n1896-1952\n\nOccurrences", breaks = c(0,1,2), labels = c("0", "1")) + tm_compass(position=c("right", "top"), text.size = .4) + tm_layout(main.title = "Passiflora incarnata",
+          main.title.size = .8,
+          main.title.fontface = 3,
+          legend.title.fontface = 2,
+          legend.title.size = .85,
+          title.position = c("center", "top"), 
+          compass.type = "rose",
+          legend.text.size= .7,
+          inner.margins=c(.1,.1,.2,.4), 
+          aes.palette = list(seq = "Greens"),
+          legend.outside = T, 
+          legend.position = c("RIGHT", "top")) + tm_scale_bar(size = 0.4, position = c("right", "BOTTOM"))  
+
+# map historical climate segments
+sp2 <- tm_shape(indiana, projection="+init=epsg:4326") + tm_polygons("N2", border.col = "grey30", title="Timeframe:\n\nCurrent-\n2010-2020\n\nOccurrences", breaks = c(0,1,2), labels = c("0", "1")) + tm_compass(position=c("right", "top"), text.size = .4) + tm_layout(main.title = "Passiflora incarnata", 
+          main.title.size = .8, 
+          main.title.fontface = 3, 
+          legend.title.fontface = 2,
+          legend.title.size = .85,
+          title.position = c("center", "top"), 
+          compass.type = "rose",
+          legend.text.size=.7,
+          inner.margins=c(.1,.1,.2,.4), 
+          aes.palette = list(seq = "Greens"),
+          legend.outside = T, 
+          legend.position = c("RIGHT", "top")) + tm_scale_bar(size = 0.4, position = c("right", "BOTTOM")) 
+
+tmap_arrange(sp1, sp2, ncol = 2, asp = NA)
+```
+
+## calculate current segment probabilities
+```{r}
+# calculate un-weighted chance of occurrence in each county
+n <- length(indiana$ALAND)
+indiana$UNWCHANCES <- 1/n
+# calculate weights based off of county land area
+indiana$WEIGHTS <- indiana$ALAND / mean(indiana$ALAND)
+# calculate weighted chance of occurrence in one county using area weights
+indiana$WEIGHTEDCHANCE <- indiana$UNWCHANCES * indiana$WEIGHTS
+```
+
+# calculate the probability an occurrence happens in a current climate segment
+```{r}
+# sum county occurrences by climate segment to get the probabilities of an occurrence happening in any current climate segment
+climatesegmentprobsc <- aggregate(WEIGHTEDCHANCE ~ CURRENT, indiana, sum)
+colnames(climatesegmentprobsc)[1] <- "SEGMENT"
+name2 <- as.data.frame(indiana$NAME)
+name2$SEGMENT <- indiana$CURRENT
+name2 <- left_join(name2, climatesegmentprobsc)
+indiana$CSCHANCEC <- name2$WEIGHTEDCHANCE
+```
+
+## calculate climate segment probabilities based on historical distribution
+```{r}
+# calculate frequency
+histincarnata$frequency <- histincarnata$count/sum(histincarnata$count)
+# add null expectations
+histincarnata$null <- climatesegmentprobs$WEIGHTEDCHANCE
+# calculate weights
+meanprob <- mean(histincarnata$null)
+histincarnata$weights <- histincarnata$null - meanprob
+# adjust frequency so it equals un-weighted probabilities
+n <- as.numeric(length(histincarnata$X))
+zeros <- as.numeric(colSums(histincarnata[5] == 0))
+numbnotzeros <- as.numeric(colSums(histincarnata[5] != 0))
+subtract <- zeros * 0.09 / numbnotzeros
+
+for(i in 1:n){
+  if(histincarnata$frequency[i]== 0){
+    histincarnata$unw_probs[i] <- 0 + 0.09
+ } else if(histincarnata$frequency[i] != 0){
+    histincarnata$unw_probs[i] <- histincarnata$frequency[i] - subtract
+  }
+}
+
+## apply weights
+histincarnata$weighted_probs <- histincarnata$unw_probs + histincarnata$weights
+```
+
+## prepare current distribution data for exact multinomial test using historic climate segments
+```{r}
+# add historic climate segments
+incarnata$historic_seg <- indiana$HISTORI
+# aggregate counts by climate segment
+incarnata2 <- aggregate(incarnata$occurrences, by=list(historic_seg=incarnata$historic_seg), FUN=sum)
+colnames(incarnata2)[2] <- "occurrences"
+# add species name column
+incarnata2$speciesName <- "Passiflora incarnata"
+# create vector with occurrences
+incarnata3 <- as.numeric(incarnata2$occurrences)
+```
+
+## create array for p-values and conduct exact multinomial test
+```{r}
+## create empty vector for p-values
+pvalues1 <- array(c(0), dim = 1)
+## conduct exact multinomial test and output p-values for each species
+for(i in 1:1){
+  pvalues1[i] = 
+multinomial.test(incarnata3, histincarnata$weighted_probs)$p.value}
+```
+
+## test against current null model
+```{r}
+# add historic climate segments
+incarnata$current_seg <- indiana$CURRENT
+# aggregate counts by climate segment
+incarnatacurrent2 <- aggregate(incarnata$occurrences, by=list(current_seg=incarnata$current_seg), FUN=sum)
+colnames(incarnatacurrent2)[2] <- "occurrences"
+# add species name column
+incarnatacurrent2$speciesName <- "Passiflora incarnata"
+# create vector with occurrences
+incarnatacurrent3 <- as.numeric(incarnatacurrent2$occurrences)
+```
+
+## create array for p-values and conduct exact multinomial test
+```{r}
+## create empty vector for p-values
+pvaluesnullcurrent <- array(c(0), dim = 1)
+## conduct exact multinomial test and output p-values for each species
+for(i in 1:1){
+  pvaluesnullcurrent[i] = 
+multinomial.test(incarnatacurrent3, climatesegmentprobsc$WEIGHTEDCHANCE)$p.value}
+```
+
+## create relevant alternative models: def, ef, and f
+```{r}
+# get current climate segment names
+climatesegmentscurrent <- as.data.frame(unique(indiana$CURRENT))
+colnames(climatesegmentscurrent)[1] <- "current_seg"
+# add odds column and replicate for each alternative model
+climatesegmentscurrent$odds <- 0
+defodds <- climatesegmentscurrent
+efodds <- climatesegmentscurrent
+fodds <- climatesegmentscurrent
+# modify alternative probabilities based on model
+# def odds
+remainder <- (1 - 2 * 0.1) / 3
+listvalue <- c("d Climate Segment", "e Climate Segment", "f Climate Segment")
+notlistvalue <- c("b Climate Segment", "c Climate Segment")
+for(i in 1:5){
+  if(defodds$current_seg[i] %in% notlistvalue){
+    defodds$odds[i] <- 0 + 0.1
+ } else if(defodds$current_seg[i] %in% listvalue){
+    defodds$odds[i] <- remainder
+  }
+}
+# ef odds
+remainder <- (1 - 3 * 0.1) / 2
+listvalue <- c("e Climate Segment", "f Climate Segment")
+notlistvalue <- c("b Climate Segment", "c Climate Segment", "d Climate Segment")
+for(i in 1:5){
+  if(efodds$current_seg[i] %in% notlistvalue){
+    efodds$odds[i] <- 0 + 0.1
+ } else if(efodds$current_seg[i] %in% listvalue){
+    efodds$odds[i] <- remainder
+  }
+}
+# f odds
+remainder <- 1 - 4 * 0.1
+listvalue <- c("f Climate Segment")
+notlistvalue <- c("b Climate Segment", "c Climate Segment", "d Climate Segment", "e Climate Segment")
+for(i in 1:5){
+  if(fodds$current_seg[i] %in% notlistvalue){
+    fodds$odds[i] <- 0 + 0.1
+ } else if(fodds$current_seg[i] %in% listvalue){
+    fodds$odds[i] <- remainder
+  }
+}
+# weight probabilities based off of land area per current climate segment
+meanlandareapercurrentseg <- mean(climatesegmentprobsc$WEIGHTEDCHANCE)
+climatesegmentprobsc$altmodelweights <- climatesegmentprobsc$WEIGHTEDCHANCE - meanlandareapercurrentseg
+# merge weights with alternative models
+climatesegmentaltweightsc <- subset(climatesegmentprobsc, select = c(SEGMENT, altmodelweights))
+colnames(climatesegmentaltweightsc)[1] <- "current_seg"
+defodds <- merge(defodds, climatesegmentaltweightsc)
+efodds <- merge(efodds, climatesegmentaltweightsc)
+fodds <- merge(fodds, climatesegmentaltweightsc)
+# add weights to unweighted probabilites to get weighted probababilities
+defodds$weighted_probs <- defodds$odds + defodds$altmodelweights
+efodds$weighted_probs <- efodds$odds + efodds$altmodelweights
+fodds$weighted_probs <- fodds$odds + fodds$altmodelweights
+```
+
+## create array for p-values and conduct exact multinomial test for def model
+```{r}
+## create empty vector for p-values
+pvaluesdefcurrent <- array(c(0), dim = 1)
+## conduct exact multinomial test and output p-values for each species
+for(i in 1:1){
+  pvaluesdefcurrent[i] = 
+multinomial.test(incarnatacurrent3, defodds$weighted_probs)$p.value}
+```
+
+## create array for p-values and conduct exact multinomial test for ef model
+```{r}
+## create empty vector for p-values
+pvaluesefcurrent <- array(c(0), dim = 1)
+## conduct exact multinomial test and output p-values for each species
+for(i in 1:1){
+  pvaluesefcurrent[i] = 
+multinomial.test(incarnatacurrent3, efodds$weighted_probs)$p.value}
+```
+
+## create array for p-values and conduct exact multinomial test for f model
+```{r}
+## create empty vector for p-values
+pvaluesfcurrent <- array(c(0), dim = 1)
+## conduct exact multinomial test and output p-values for each species
+for(i in 1:1){
+  pvaluesfcurrent[i] = 
+multinomial.test(incarnatacurrent3, fodds$weighted_probs)$p.value}
+```
+
+# create pvalue dataframe and export
+```{r}
+# add model names
+pvalues1 <- as.data.frame(pvalues1)
+colnames(pvalues1)[1] <- "pvalue"
+pvalues1$model <- "historic"
+pvaluesnullcurrent <- as.data.frame(pvaluesnullcurrent)
+colnames(pvaluesnullcurrent)[1] <- "pvalue"
+pvaluesnullcurrent$model <- "nullcurrent"
+pvaluesdefcurrent <- as.data.frame(pvaluesdefcurrent)
+colnames(pvaluesdefcurrent)[1] <- "pvalue"
+pvaluesdefcurrent$model <- "defcurrent"
+pvaluesefcurrent <- as.data.frame(pvaluesefcurrent)
+colnames(pvaluesefcurrent)[1] <- "pvalue"
+pvaluesefcurrent$model <- "efcurrent"
+pvaluesfcurrent <- as.data.frame(pvaluesfcurrent)
+colnames(pvaluesfcurrent)[1] <- "pvalue"
+pvaluesfcurrent$model <- "fcurrent"
+# merge data frames
+pvaluespassifloraincarnata <- rbind(pvalues1, pvaluesnullcurrent, pvaluesdefcurrent, pvaluesefcurrent, pvaluesfcurrent)
+# add species name
+pvaluespassifloraincarnata$species_name <- "Passiflora incarnata"
+# export
+write.csv(pvaluespassifloraincarnata, "Passiflora_incarnata_results.csv", row.names = F)
+```
+
+
+>>>>>>> b1fb11f5d93378a74feebd963fd9f1464e8b1d91

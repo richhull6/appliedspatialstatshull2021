@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 ---
 title: "Hull Course Project Applied Spatial Statistics Fall 2021"
 output: html_notebook
@@ -127,3 +128,134 @@ write.csv(notsigspecies, "altnotsigspecies.csv", row.names = F)
 
 
 
+=======
+---
+title: "Hull Course Project Applied Spatial Statistics Fall 2021"
+output: html_notebook
+---
+## set working directory
+```{r}
+setwd("~/Indiana PhD/IU--Applied Spatial Statistics/Course_Project")
+```
+
+## install/load necessary packages
+```{r}
+# install/load data parsing packages
+if(!require(dplyr)){install.packages("dplyr")}
+library(dplyr)
+if(!require(tidyr)){install.packages("tidyr")}
+library(tidyr)
+if(!require(data.table)){install.packages("data.table")}
+library(data.table)
+if(!require(stringr)){install.packages("stringr")}
+library(stringr)
+if(!require(lubridate)){install.packages("lubridate")}
+library(lubridate)
+# install/load map and raster packages
+if(!require(sf)){install.packages("sf")}
+library(sf)
+if(!require(tmap)){install.packages("tmap")}
+library(tmap)
+if(!require(rgdal)){install.packages("rgdal")}
+library(rgdal)
+if(!require(sp)){install.packages("sp")}
+library(sp)
+if(!require(raster)){install.packages("raster")}
+library(raster)
+# install/load exact multinomial test packages
+if(!require(EMT)){install.packages("EMT")}
+library(EMT)
+if(!require(purrr)){install.packages("purrr")}
+library(purrr)
+```
+
+## import alternative test results
+```{r}
+aClimateSegmentaClimateSegment <- read.csv("pvaluesaClimateSegmentaClimateSegment.csv", header = T)
+
+bClimateSegmentbClimateSegment <- read.csv("pvaluesbClimateSegmentbClimateSegment.csv", header = T)
+
+cClimateSegmentcClimateSegment <- read.csv("pvaluescClimateSegmentcClimateSegment.csv", header = T)
+
+dClimateSegmentdClimateSegment <- read.csv("pvaluesdClimateSegmentdClimateSegment.csv", header = T)
+
+eClimateSegmenteClimateSegment <- read.csv("pvalueseClimateSegmenteClimateSegment.csv", header = T)
+
+fClimateSegmentfClimateSegment <- read.csv("pvaluesfClimateSegmentfClimateSegment.csv", header = T)
+
+aClimateSegmentbClimateSegment <- read.csv("pvaluesaClimateSegmentbClimateSegment.csv", header = T)
+
+bClimateSegmentcClimateSegment <- read.csv("pvaluesbClimateSegmentcClimateSegment.csv", header = T)
+
+cClimateSegmentdClimateSegment <- read.csv("pvaluescClimateSegmentdClimateSegment.csv", header = T)
+
+dClimateSegmenteClimateSegment <- read.csv("pvaluesdClimateSegmenteClimateSegment.csv", header = T)
+
+eClimateSegmentfClimateSegment <- read.csv("pvalueseClimateSegmentfClimateSegment.csv", header = T)
+
+aClimateSegmentcClimateSegment <- read.csv("pvaluesaClimateSegmentcClimateSegment.csv", header = T)
+
+bClimateSegmentdClimateSegment <- read.csv("pvaluesbClimateSegmentdClimateSegment.csv", header = T)
+
+cClimateSegmenteClimateSegment <- read.csv("pvaluescClimateSegmenteClimateSegment.csv", header = T)
+
+dClimateSegmentfClimateSegment <- read.csv("pvaluesdClimateSegmentfClimateSegment.csv", header = T)
+
+aClimateSegmentdClimateSegment <- read.csv("pvaluesaClimateSegmentdClimateSegment.csv", header = T)
+
+bClimateSegmenteClimateSegment <- read.csv("pvaluesbClimateSegmenteClimateSegment.csv", header = T)
+
+cClimateSegmentfClimateSegment <- read.csv("pvaluescClimateSegmentfClimateSegment.csv", header = T)
+
+aClimateSegmenteClimateSegment <- read.csv("pvaluesaClimateSegmenteClimateSegment.csv", header = T)
+
+bClimateSegmentfClimateSegment <- read.csv("pvaluesbClimateSegmentfClimateSegment.csv", header = T)
+```
+
+## append dataframes into one dataframe
+```{r}
+pvalues1 <- do.call("rbind", list(aClimateSegmentaClimateSegment, bClimateSegmentbClimateSegment, cClimateSegmentcClimateSegment, dClimateSegmentdClimateSegment, 
+eClimateSegmenteClimateSegment, 
+fClimateSegmentfClimateSegment, 
+aClimateSegmentbClimateSegment, 
+bClimateSegmentcClimateSegment, 
+cClimateSegmentdClimateSegment, 
+dClimateSegmenteClimateSegment, 
+eClimateSegmentfClimateSegment, 
+aClimateSegmentcClimateSegment, 
+bClimateSegmentdClimateSegment, 
+cClimateSegmenteClimateSegment, 
+dClimateSegmentfClimateSegment, 
+aClimateSegmentdClimateSegment, 
+bClimateSegmenteClimateSegment, 
+cClimateSegmentfClimateSegment, 
+aClimateSegmenteClimateSegment, 
+bClimateSegmentfClimateSegment))
+```
+
+## Find best fit model for each species
+```{r}
+## Find best fit model for each species
+pvalues2 <- pvalues1 %>% group_by(speciesName) %>% top_n(1, padj)
+## Subset species with a p-value less than 0.05
+pvaluesnotsig1 <- pvalues2[pvalues2$padj < 0.05,]
+notsigspecies <- as.data.frame(unique(pvaluesnotsig1$speciesName))
+colnames(notsigspecies)[1] <- "speciesName"
+## Remove species from best fit model that are not significant
+altmodelbestfits1 <- pvalues2[!grepl(paste(notsigspecies$speciesName, collapse="|"), pvalues2$speciesName),]
+## Subset to keep desired rows
+altmodelbestfits <- subset(altmodelbestfits1, select = c(speciesName, padj, model))
+numberbestfitspermodel <- as.data.frame(table(altmodelbestfits$model))
+## Find highest fit per model
+highestfitpermodel <- altmodelbestfits %>% group_by(model) %>% top_n(1, padj)
+## export data
+write.csv(highestfitpermodel, "highestfitpermodel.csv", row.names = F)
+write.csv(altmodelbestfits, "altmodelbestfits.csv", row.names = F)
+write.csv(notsigspecies, "altnotsigspecies.csv", row.names = F)
+```
+
+
+
+
+
+>>>>>>> b1fb11f5d93378a74feebd963fd9f1464e8b1d91
